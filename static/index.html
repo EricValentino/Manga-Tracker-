@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AniTracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Raleway:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.15/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.15/dist/ScrollTrigger.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h1>AniTracker</h1>
+
+  <div class="search-bar">
+    <input type="text" id="searchBox" placeholder="Search for a manga...">
+    <button onclick="searchManga()">Search</button>
+  </div>
+
+  <div class="tab-bar">
+    <button onclick="showTab('mangaTab')">Manga</button>
+    <button onclick="showTab('discoverTab')">Discover</button>
+    <button onclick="showTab('animeTab')">Anime</button>
+  </div>
+
+  <div id="mangaTab" class="tab-content">
+    <h2>Recommended For You</h2>
+    <button onclick="getRecommendations()">Get Recommendations</button>
+    <div id="recommendations"></div>
+
+    <div id="results"></div>
+
+    <h2>My List</h2>
+    <div id="myList"></div>
+  </div>
+
+  <div id="discoverTab" class="tab-content">
+    <h2>Discover</h2>
+    <div id="discoverSections"></div>
+  </div>
+
+  <div id="animeTab" class="tab-content">
+    <h2>Discover Anime</h2>
+    <div id="animeDiscoverSections"></div>
+  </div>
+
+  <div id="detailModal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal(event)">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
