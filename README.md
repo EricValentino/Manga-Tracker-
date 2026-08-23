@@ -28,7 +28,10 @@ A full-stack manga and anime tracking application with AI-powered recommendation
 
 ## Screenshots
 
-<!-- Add screenshots here -->
+<img width="1067" height="780" alt="Screen Shot 2026-08-22 at 7 52 41 PM" src="https://github.com/user-attachments/assets/3d0da993-2bb4-41e6-b078-1664760b4270" />
+<img width="1121" height="777" alt="Screen Shot 2026-08-22 at 7 52 30 PM" src="https://github.com/user-attachments/assets/c3159d57-a4f5-4ec1-8676-0747f1306d4a" />
+<img width="1135" height="616" alt="Screen Shot 2026-08-22 at 7 52 15 PM" src="https://github.com/user-attachments/assets/9e99bba5-5f3c-43e1-9e72-bfc09be6fb79" />
+
 
 ## AI Integration
 
