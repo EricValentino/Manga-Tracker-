@@ -87,4 +87,4 @@ manga-tracker/
 
 ## Notes
 
-This is a personal/portfolio project without user authentication — all data is shared across anyone using a given deployment. Built as a learning project covering full-stack development, third-party API integration (REST and GraphQL), and practical LLM integration.
+This is a personal/portfolio project without user authentication (I plan on making user authentication in the future) all data is shared across anyone using a given deployment. Built as a learning project covering full-stack development, third-party API integration (REST and GraphQL), and practical LLM integration.
