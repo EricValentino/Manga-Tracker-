@@ -1,5 +1,37 @@
 gsap.registerPlugin(ScrollTrigger);
 
+// ---------- Helpers ----------
+
+// Escape text before interpolating it into HTML. Titles, genres and AI-generated
+// reasons come from external services, so they must never be injected as markup.
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+}
+
+// AniList descriptions contain HTML. Parse it inertly and keep only the text.
+function htmlToText(html) {
+  const doc = new DOMParser().parseFromString(String(html ?? "").replace(/<br\s*\/?>/gi, " "), "text/html");
+  return doc.body.textContent || "";
+}
+
+// fetch() only rejects on network errors; treat HTTP errors as failures too.
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = new Error((body && body.detail) || `Request failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
+  return body;
+}
+
+function displayTitle(media) {
+  return media.title.english || media.title.romaji;
+}
+
 function showTab(tabId) {
   document.querySelectorAll(".tab-content").forEach(tab => {
     tab.style.display = "none";
@@ -11,22 +43,23 @@ let currentSearchResult = null;
 
 async function searchManga() {
   try {
-    const query = document.getElementById("searchBox").value;
-    const response = await fetch("/search?title=" + query);
-    const manga = await response.json();
+    const query = document.getElementById("searchBox").value.trim();
+    if (!query) return;
+    const manga = await fetchJson("/search?title=" + encodeURIComponent(query));
 
     currentSearchResult = manga;
 
     const resultsDiv = document.getElementById("results");
     resultsDiv.innerHTML = `
       <div class="manga-card">
-        <p><strong>${manga.title.english || manga.title.romaji}</strong></p>
-        <p>${manga.genres.join(", ")}</p>
+        <p><strong>${escapeHtml(displayTitle(manga))}</strong></p>
+        <p>${escapeHtml(manga.genres.join(", "))}</p>
         <button onclick="saveManga()">Add to my list</button>
       </div>
     `;
   } catch (error) {
-    document.getElementById("results").innerHTML = "<p>Search failed. Please try again.</p>";
+    const message = error.status === 404 ? "No manga found with that title." : "Search failed. Please try again.";
+    document.getElementById("results").innerHTML = `<p>${message}</p>`;
     console.error(error);
   }
 }
@@ -34,11 +67,11 @@ async function searchManga() {
 async function saveManga() {
   try {
     const manga = currentSearchResult;
-    await fetch("/manga", {
+    await fetchJson("/manga", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: manga.title.english || manga.title.romaji,
+        title: displayTitle(manga),
         genre: manga.genres.join(", "),
         total_chapters: manga.chapters,
         cover_image: manga.coverImage?.large,
@@ -54,23 +87,22 @@ async function saveManga() {
 
 async function loadMyList() {
   try {
-    const response = await fetch("/manga");
-    const mangaList = await response.json();
-
-    const progressResponse = await fetch("/progress");
-    const progressList = await progressResponse.json();
+    const [mangaList, progressList] = await Promise.all([
+      fetchJson("/manga"),
+      fetchJson("/progress")
+    ]);
 
     const listDiv = document.getElementById("myList");
     listDiv.innerHTML = mangaList.map(m => {
       const progress = progressList.find(p => p.manga_id === m.id);
       const currentStatus = progress ? progress.status : "reading";
       const currentChapter = progress ? progress.chapter : "";
-      const currentRating = progress ? progress.rating : "";
+      const currentRating = progress && progress.rating != null ? progress.rating : "";
 
       return `
         <div class="manga-card">
-          <img src="${m.cover_image}" alt="${m.title}">
-          <p>${m.title} — ${m.genre}</p>
+          <img src="${escapeHtml(m.cover_image)}" alt="${escapeHtml(m.title)}">
+          <p>${escapeHtml(m.title)} — ${escapeHtml(m.genre)}</p>
           <button onclick="deleteManga(${m.id})">Delete</button>
 
           <div class="progress-form">
@@ -79,8 +111,8 @@ async function loadMyList() {
               <option value="completed" ${currentStatus === "completed" ? "selected" : ""}>Completed</option>
               <option value="plan to read" ${currentStatus === "plan to read" ? "selected" : ""}>Plan to Read</option>
             </select>
-            <input type="number" id="chapter-${m.id}" placeholder="Chapter" value="${currentChapter}">
-            <input type="number" id="rating-${m.id}" placeholder="Rating (1-10)" value="${currentRating}">
+            <input type="number" min="0" id="chapter-${m.id}" placeholder="Chapter" value="${currentChapter}">
+            <input type="number" min="1" max="10" id="rating-${m.id}" placeholder="Rating (1-10)" value="${currentRating}">
             <button onclick="saveProgress(${m.id}, ${progress ? progress.id : null})">Save Progress</button>
           </div>
         </div>
@@ -96,7 +128,7 @@ async function loadMyList() {
 
 async function deleteManga(mangaId) {
   try {
-    await fetch("/manga/" + mangaId, {
+    await fetchJson("/manga/" + mangaId, {
       method: "DELETE"
     });
     loadMyList();
@@ -108,20 +140,22 @@ async function deleteManga(mangaId) {
 
 async function getRecommendations() {
   try {
-    const response = await fetch("/recommendations");
-    const recommendations = await response.json();
+    const recommendations = await fetchJson("/recommendations");
 
     const recDiv = document.getElementById("recommendations");
     recDiv.innerHTML = recommendations.map(r => `
       <div class="rec-card">
-        <img src="${r.cover_image}" alt="${r.title}">
-        <p><strong>${r.title}</strong></p>
-        <p>${r.genre}</p>
-        <p>${r.reason}</p>
+        ${r.cover_image ? `<img src="${escapeHtml(r.cover_image)}" alt="${escapeHtml(r.title)}">` : ""}
+        <p><strong>${escapeHtml(r.title)}</strong></p>
+        <p>${escapeHtml(r.genre)}</p>
+        <p>${escapeHtml(r.reason)}</p>
       </div>
     `).join("");
   } catch (error) {
-    document.getElementById("recommendations").innerHTML = "<p>Couldn't load recommendations. Please try again.</p>";
+    const message = error.status === 503
+      ? "Recommendations are unavailable: the server has no OpenAI API key configured."
+      : "Couldn't load recommendations. Please try again.";
+    document.getElementById("recommendations").innerHTML = `<p>${message}</p>`;
     console.error(error);
   }
 }
@@ -129,8 +163,10 @@ async function getRecommendations() {
 async function saveProgress(mangaId, progressId) {
   try {
     const status = document.getElementById("status-" + mangaId).value;
-    const chapter = Number(document.getElementById("chapter-" + mangaId).value);
-    const rating = Number(document.getElementById("rating-" + mangaId).value);
+    const chapter = Number(document.getElementById("chapter-" + mangaId).value) || 0;
+    const ratingRaw = document.getElementById("rating-" + mangaId).value;
+    // An empty rating means "not rated" (null), not zero.
+    const rating = ratingRaw === "" ? null : Number(ratingRaw);
 
     const body = {
       chapter: chapter,
@@ -140,13 +176,13 @@ async function saveProgress(mangaId, progressId) {
     };
 
     if (progressId) {
-      await fetch("/progress/" + progressId, {
+      await fetchJson("/progress/" + progressId, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
     } else {
-      await fetch("/progress", {
+      await fetchJson("/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -155,7 +191,9 @@ async function saveProgress(mangaId, progressId) {
 
     loadMyList();
   } catch (error) {
-    alert("Couldn't save your progress. Please try again.");
+    alert(error.status === 422
+      ? "Please enter a chapter of 0 or more and a rating from 1 to 10."
+      : "Couldn't save your progress. Please try again.");
     console.error(error);
   }
 }
@@ -169,18 +207,17 @@ async function loadDiscoverRow(title, sort, targetDivId, endpoint = "/discover",
       url += "&country=" + country;
     }
 
-    const response = await fetch(url);
-    const mangaList = await response.json();
+    const mangaList = await fetchJson(url);
 
     const rowId = "row-" + sort + endpoint + (country || "");
 
     const rowHtml = `
-      <h3>${title}</h3>
+      <h3>${escapeHtml(title)}</h3>
       <div class="discover-row" id="${rowId}">
         ${mangaList.map(m => `
-          <div class="manga-card" onclick="openDetails(${m.id}, '${mediaType}')">
-            <img src="${m.coverImage.large}" alt="${m.title.english || m.title.romaji}">
-            <p>${m.title.english || m.title.romaji}</p>
+          <div class="manga-card" onclick="openDetails(${Number(m.id)}, '${mediaType}')">
+            <img src="${escapeHtml(m.coverImage?.large)}" alt="${escapeHtml(displayTitle(m))}">
+            <p>${escapeHtml(displayTitle(m))}</p>
           </div>
         `).join("")}
       </div>
@@ -201,18 +238,17 @@ async function loadDiscoverRow(title, sort, targetDivId, endpoint = "/discover",
 
 async function openDetails(id, type) {
   try {
-    const response = await fetch(`/details?id=${id}&type=${type}`);
-    const details = await response.json();
+    const details = await fetchJson(`/details?id=${encodeURIComponent(id)}&type=${encodeURIComponent(type)}`);
 
     const progressLabel = type === "MANGA" ? "Chapters" : "Episodes";
     const progressValue = type === "MANGA" ? details.chapters : details.episodes;
 
     document.getElementById("modalBody").innerHTML = `
-      <img src="${details.coverImage.large}" alt="${details.title.english || details.title.romaji}">
-      <h2 style="margin-top:0; border:none; padding:0;">${details.title.english || details.title.romaji}</h2>
-      <p><strong>Score:</strong> ${details.averageScore ?? "N/A"} &nbsp; <strong>${progressLabel}:</strong> ${progressValue ?? "Ongoing"}</p>
-      <p><strong>Genres:</strong> ${details.genres.join(", ")}</p>
-      <p>${details.description ? details.description.replace(/<br\s*\/?>/gi, " ") : "No description available."}</p>
+      <img src="${escapeHtml(details.coverImage?.large)}" alt="${escapeHtml(displayTitle(details))}">
+      <h2 style="margin-top:0; border:none; padding:0;">${escapeHtml(displayTitle(details))}</h2>
+      <p><strong>Score:</strong> ${escapeHtml(details.averageScore ?? "N/A")} &nbsp; <strong>${progressLabel}:</strong> ${escapeHtml(progressValue ?? "Ongoing")}</p>
+      <p><strong>Genres:</strong> ${escapeHtml(details.genres.join(", "))}</p>
+      <p>${details.description ? escapeHtml(htmlToText(details.description)) : "No description available."}</p>
     `;
 
     document.getElementById("detailModal").classList.add("active");
